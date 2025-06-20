@@ -90,9 +90,7 @@ class UFF:
         """
         file_type = self.filemetadata['file_type']
         if file_type in jpkfiles:
-            with open(self.filemetadata['file_path'], 'rb') as file:
-                afmfile = ZipFile(file)
-                FC = self._loadcurve(curveidx, afmfile, file_type)
+                FC = self._loadcurve(curveidx, self.afmfile, file_type)
         elif file_type[1:].isdigit() or file_type in nanoscfiles:
             FC = self._loadcurve(curveidx, None, file_type)
         elif file_type in ufffiles:
