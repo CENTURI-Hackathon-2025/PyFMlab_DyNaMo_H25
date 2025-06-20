@@ -1,4 +1,5 @@
 import os
+from io import BytesIO
 from itertools import groupby
 from zipfile import ZipFile
 from .parsejpkheader import parseJPKheader, parseJPKsegmentheader
@@ -94,5 +95,10 @@ def loadJPKfile(filepath, UFF, filesuffix):
         UFF.filemetadata['height_channel_key'] = height_channel_key
 
         UFF.filemetadata['curve_properties'] = curve_properties
+
+        zipdata = file.read()
+        zipbuffer = BytesIO(zipdata)
+        # global zipbuffer
+        UFF.zipbuffer = zipbuffer
 
     return UFF
