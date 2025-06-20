@@ -39,6 +39,8 @@ class UFF:
         # In files like JPK scans you may
         # have additional image data.
         self.imagedata=None
+        self.jpkzip = None
+        self.zipbuffer=None
     
     def _loadcurve(self, curveidx, afmfile, file_type):
         """
@@ -90,9 +92,11 @@ class UFF:
         """
         file_type = self.filemetadata['file_type']
         if file_type in jpkfiles:
-            with open(self.filemetadata['file_path'], 'rb') as file:
-                afmfile = ZipFile(file)
-                FC = self._loadcurve(curveidx, afmfile, file_type)
+            # with open(self.filemetadata['file_path'], 'rb') as file:
+            with ZipFile(self.zipbuffer) as zf:
+                zf.seek(0)
+                # afmfile = ZipFile(file)
+                FC = self._loadcurve(curveidx, zf, file_type)
         elif file_type[1:].isdigit() or file_type in nanoscfiles:
             FC = self._loadcurve(curveidx, None, file_type)
         elif file_type in ufffiles:
