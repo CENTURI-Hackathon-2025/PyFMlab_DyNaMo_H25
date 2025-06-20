@@ -14,6 +14,8 @@ def load_single_file(filepath):
         file_id = file.filemetadata['Entry_filename']
         file_type = file.filemetadata['file_type']
         is_map_file = file.filemetadata.get('mapping_bool') # check if the file is part of a map file
+        zip_buffer = file.filemetadata.get('zip_buffer') # check if the file is a zip buffer
+        
         if file.isFV and file_type in const.nanoscope_file_extensions:
             file.getpiezoimg()
         # elif is_map_file and file_type in const.psnex_file_extension:

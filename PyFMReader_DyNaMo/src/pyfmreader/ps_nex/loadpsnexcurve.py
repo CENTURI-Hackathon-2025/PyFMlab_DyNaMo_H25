@@ -8,8 +8,8 @@ Created on Thu Apr  4 18:07:32 2024
 # File containing the loadPSNEXcurve function,
 # used to load single force curves from JPK files.
 
-from struct import unpack
-from itertools import groupby
+# from struct import unpack
+# from itertools import groupby
 import numpy as np
 from nptdms import TdmsFile
 

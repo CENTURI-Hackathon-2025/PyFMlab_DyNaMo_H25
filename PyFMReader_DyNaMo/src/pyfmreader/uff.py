@@ -41,10 +41,32 @@ class UFF:
         self.imagedata=None
         self.jpkzip = None
         self.zipbuffer=None
-    
+
+    def openzip(self, curveidx, file_type):
+        """
+        Function used to open a zip buffer containing the data of a JPK file.
+        
+                Parameters:
+                        curveidx (int): Index of curve to load.
+                        file_type (str): File extension.
+                
+                Returns: 
+                        FC (utils.forcecurve.ForceCurve): ForceCurve object containing the force curve data.
+        """
+        # with open(self.filemetadata['file_path'], 'rb') as file:
+        with ZipFile(self.zipbuffer) as zf:
+            zf.seek(0)
+            # afmfile = ZipFile(file)
+            FC = self._loadcurve(curveidx, zf, file_type)
+
+        return FC
+
     def _loadcurve(self, curveidx, afmfile, file_type):
         """
         Hidden function used to load a single curve from a file.
+
+        afmfile: is a ZipFile object containing the data of the JPK file.
+ 
         
         Supported formats:
             - JPK --> .jpk-force, .jpk-force-map, .jpk-qi-data

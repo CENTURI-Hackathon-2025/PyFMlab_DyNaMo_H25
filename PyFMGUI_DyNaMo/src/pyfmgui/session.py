@@ -1,5 +1,6 @@
 class Session:
     def __init__(self):
+        self.zip_buffer = None # added within the class session
         self.loaded_files_paths = []
         self.loaded_files = {}
         self.hertz_fit_results = {}
