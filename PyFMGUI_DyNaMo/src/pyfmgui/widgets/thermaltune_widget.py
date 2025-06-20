@@ -2,15 +2,18 @@ import os
 import numpy as np
 import requests
 import xml.etree.ElementTree as etree
-import PyQt5
+# import PyQt5
 from pyqtgraph.Qt import QtGui, QtWidgets, QtCore
 import pyqtgraph as pg
 from pyqtgraph.parametertree import Parameter, ParameterTree
+import pandas as pd
 
-from pyfmreader import loadfile
+from pyqtgraph.exporters import ImageExporter
+# from pyfmreader import loadfile
 from pyfmrheo.models.calibration import Stark_Chi_force_constant
 from pyfmrheo.models.sho import SHOModel
 
+import pyfmgui.const as cts
 import pyfmgui.const as cts
 
 class ThermalTuneWidget(QtWidgets.QWidget):
@@ -31,7 +34,9 @@ class ThermalTuneWidget(QtWidgets.QWidget):
         self.involsValue = None
         self.invOLS_H = None
         self.sader_canti_list = {}
+        self.filename = None
         self.init_gui()
+        # self.sader_login()
 
     def init_gui(self):
         main_layout = QtWidgets.QHBoxLayout()
@@ -80,11 +85,13 @@ class ThermalTuneWidget(QtWidgets.QWidget):
         user_name_label.setMaximumWidth(150)
         self.user_name_text = QtWidgets.QLineEdit()
         self.user_name_text.setMaximumHeight(40)
+        self.user_name_text.setText(cts.DEFAULT_SADER_USERNAME)
         user_pwd_label = QtWidgets.QLabel("SADER Password")
         user_pwd_label.setAlignment(QtCore.Qt.AlignmentFlag.AlignRight | QtCore.Qt.AlignmentFlag.AlignVCenter)
         user_pwd_label.setMaximumWidth(150)
         self.user_pwd_text = QtWidgets.QLineEdit()
         self.user_pwd_text.setMaximumHeight(40)
+        self.user_pwd_text.setText(cts.DEFAULT_SADER_PASSWORD)
         self.user_pwd_text.setEchoMode(QtWidgets.QLineEdit.Password)
         login_bttn = QtWidgets.QPushButton()
         login_bttn.setText("Login")
@@ -105,13 +112,28 @@ class ThermalTuneWidget(QtWidgets.QWidget):
         self.pushButton.setText("Compute")
         self.pushButton.clicked.connect(self.do_thermalfit)
 
-        self.l2 = pg.GraphicsLayoutWidget()
+
+        self.saveButton = QtWidgets.QPushButton("saveButton")
+        self.saveButton.setText("save as png")
+        self.saveButton.clicked.connect(self.save_results_to_png)
+
 
         params_layout.addLayout(file_select_layout, 2)
         params_layout.addLayout(login_layout, 2)
         params_layout.addWidget(self.paramTree, 2)
         params_layout.addWidget(self.pushButton, 1)
-        params_layout.addWidget(self.l2, 2)
+        params_layout.addWidget(self.saveButton, 1)
+        
+        # #parameters layout
+        # self.l2 = pg.GraphicsLayoutWidget()
+        # params_layout.addWidget(self.l2, 1)
+
+        #added by lorenzo
+        self.message_label = QtWidgets.QLabel("POOOP")
+        self.message_label.setAlignment(QtCore.Qt.AlignmentFlag.AlignRight | QtCore.Qt.AlignmentFlag.AlignVCenter)
+        self.message_label.setMaximumWidth(150)
+        # params_layout.addWidget(self.message_label, 1)  # Add the QLabel to the layout
+
 
         ## Add 3 plots into the first row (automatic position)
         self.l = pg.GraphicsLayoutWidget()
@@ -125,51 +147,130 @@ class ThermalTuneWidget(QtWidgets.QWidget):
         ## Put vertical label on left side
         main_layout.addLayout(params_layout, 1)
         main_layout.addWidget(self.l, 3)
-    
+     
+
+    def read_afm_data(self, file_path):
+        file_ext = os.path.splitext(file_path)[1]
+        if file_ext != ".dat":
+            print('what the hell are you: ' ,file_path)
+            raise ValueError("Unsupported file format. Please provide a .dat file.")
+
+        headers = {}
+        data = []
+
+        with open(file_path, 'r') as file:
+            for line in file:
+                if line.startswith('#'):
+                    key, value = line[1:].strip().split(':', 1)
+                    key = key.strip()
+                    value = value.strip()
+                    try:
+                        headers[key] = float(value)
+                    except ValueError:
+                        headers[key] = value
+                else:
+                    if line.strip():
+                        data.append([float(x) for x in line.split()])
+
+        df = pd.DataFrame(data, columns=['Frequency', 'VerticalDeflectionPSD'])
+        amplitude = df['VerticalDeflectionPSD'].values
+        frequencies = df['Frequency'].values
+        fit_data = np.zeros_like(amplitude)
+        parameters = headers
+
+        return amplitude, frequencies, fit_data, parameters
     def closeEvent(self, evnt):
         self.session.thermal_tune_widget = None
     
     def load_data(self):
         fname, _ = QtWidgets.QFileDialog.getOpenFileName(
-        	self, 'Open file', './', "Thermal files (*.tnd)"
+        	self, 'Open file', './', "Thermal files (*.dat)"
         )
-        return loadfile(fname), os.path.basename(fname) if fname != "" else (None, None)
+        self.filename = fname
+        return self.read_afm_data(fname), os.path.basename(fname) if fname != "" else (None, None)
 
+    # def load_air_data(self):
+    #     data, fname = self.load_data()
+    #     if data is None or fname is None:
+    #         return
+    #     self.inair_thermal_ampl, _, self.inair_thermal_freq, _, self.inair_params = data
+    #     self.air_thermal_text.setText(fname)
+    #     resonancef = self.inair_params['parameter.f']
+    #     self.air_roi.setRegion([np.log10(resonancef/2), np.log10(resonancef*2)])
+    #     self.update_plot()
+
+
+    # def load_air_data(self):
+    #     data, fname = self.load_data()
+    #     #amplitude, frequencies, fit_data, parameters  = self.load_data()
+    #     #data, fname = self.load_data()
+
+    #     if data is None or fname is None:
+    #         return
+    #     self.inair_thermal_ampl, self.inair_thermal_freq, self.inair_fit_data, self.inair_params = data
+    #     self.air_thermal_text.setText(fname)
+    #     #resonancef = self.inair_params['parameter.f']
+    #     resonancef = 43000
+    #     self.air_roi.setRegion([np.log10(resonancef/2), np.log10(resonancef*2)])
+    #     self.update_plot()
     def load_air_data(self):
         data, fname = self.load_data()
         if data is None or fname is None:
             return
-        self.inair_thermal_ampl, _, self.inair_thermal_freq, _, self.inair_params = data
+        self.inair_thermal_ampl, self.inair_thermal_freq, self.inair_fit_data, self.inair_params = data
         self.air_thermal_text.setText(fname)
-        resonancef = self.inair_params['parameter.f']
-        self.air_roi.setRegion([np.log10(resonancef/2), np.log10(resonancef*2)])
+        
+        # Set a default resonance frequency if not available in parameters
+        resonancef = self.inair_params.get('parameter.f', 43000)
+        
+        # Create an interactive ROI for selecting the region
+        self.air_roi = pg.LinearRegionItem(values=[np.log10(resonancef/2), np.log10(resonancef*2)], brush=(50,50,200,0), pen='w')
+        self.air_roi.setZValue(10)
+        self.p1.addItem(self.air_roi, ignoreBounds=True)
+        
         self.update_plot()
+
+    # def load_liquid_data(self):
+    #     data, fname = self.load_data()
+    #     if data is None or fname is None:
+    #         return
+    #     self.inliquid_thermal_ampl, _, self.inliquid_thermal_freq, _, self.inliquid_params = data
+    #     self.lq_thermal_text.setText(fname)
+    #     resonancef = self.inliquid_params['parameter.f']
+    #     self.lq_roi.setRegion([np.log10(resonancef/2), np.log10(resonancef*2)])
+    #     self.update_plot()
 
     def load_liquid_data(self):
         data, fname = self.load_data()
         if data is None or fname is None:
             return
-        self.inliquid_thermal_ampl, _, self.inliquid_thermal_freq, _, self.inliquid_params = data
+        self.inliquid_thermal_ampl, self.inliquid_thermal_freq, self.inliquid_fit_data, self.inliquid_params = data
         self.lq_thermal_text.setText(fname)
-        resonancef = self.inliquid_params['parameter.f']
+        # resonancef = self.inliquid_params['parameter.f']
+        resonancef = 43000
         self.lq_roi.setRegion([np.log10(resonancef/2), np.log10(resonancef*2)])
         self.update_plot()
     
     def clear_air_data(self):
         self.inair_thermal_ampl = None
         self.inair_thermal_freq = None
+        self.freq_fit_air = None
+        self.inair_params = None
         self.air_thermal_text.setText("")
         self.update_plot()
     
     def clear_lq_data(self):
         self.inliquid_thermal_ampl = None
         self.inliquid_thermal_freq = None
+        self.freq_fit_lq = None
+        self.inliquid_params = None
         self.lq_thermal_text.setText("")
         self.update_plot()
     
     def update_plot(self):
 
-        self.l.clear()
+        # self.l.clear()
+        self.l.clearMask()
         self.p1.clear()
         self.p1legend.clear()
 
@@ -183,17 +284,20 @@ class ThermalTuneWidget(QtWidgets.QWidget):
             self.p1.addItem(self.lq_roi, ignoreBounds=True)
             self.lq_roi.setClipItem(lq)
         
-        if self.thermal_fit_air is not None:
+        if self.thermal_fit_air is not None and self.freq_fit_air is not None:
+            # air_name_fit = (f'Air SHO Fit {self.selectedCantId}')
             self.p1.plot(self.freq_fit_air, self.thermal_fit_air, pen={'color':'c', 'width': 3}, name='Air SHO Fit')
             style = pg.PlotDataItem(pen=None)
+            self.p1legend.addItem(style, f'{self.selectedCantId}')
             self.p1legend.addItem(style, f'K Air: {self.k0_air:.3f} N/m')
             self.p1legend.addItem(style, f'K Air GCI: {self.GCI_cant_springConst_air:.3f} N/m')
             self.p1legend.addItem(style, f'InVOLS Air: { self.involsValue_air * 1e9:.3f} nm/V')
             self.p1legend.addItem(style, f'InVOLS H Air: {self.invOLS_H_air * 1e9:.3f} nm/V')
         
-        if self.thermal_fit_lq is not None:
+        if self.thermal_fit_lq is not None and self.freq_fit_lq is not None:
             self.p1.plot(self.freq_fit_lq, self.thermal_fit_lq, pen={'color':'g', 'width': 3}, name='Liquid SHO Fit')
             style = pg.PlotDataItem(pen=None)
+            self.p1legend.addItem(style, f'{self.selectedCantId}')
             self.p1legend.addItem(style, f'K Liquid: {self.k0_lq:.3f} N/m')
             self.p1legend.addItem(style, f'K Liquid GCI: {self.GCI_cant_springConst_lq:.3f} N/m')
             self.p1legend.addItem(style, f'InVOLS Liquid: { self.involsValue_lq * 1e9:.3f} nm/V')
@@ -248,7 +352,7 @@ class ThermalTuneWidget(QtWidgets.QWidget):
         dlg.setWindowTitle("Login Status")
         dlg.setText(message)
         dlg.exec()
-    
+
     def sader_login(self):
         self.session.sader_username = self.user_name_text.text()
         self.session.sader_password = self.user_pwd_text.text()
@@ -258,6 +362,7 @@ class ThermalTuneWidget(QtWidgets.QWidget):
                 self.open_msg_box("Could not Login!")
                 return
             self.params.child('Calibration Params').child('Cantilever Code').setLimits(list(self.sader_canti_list.keys()))
+            # self.write_to_params_layout("Login was succesful!")
             self.open_msg_box("Login was successful!")
         except requests.exceptions.RequestException:
             self.open_msg_box("Could not Login!")
@@ -310,3 +415,21 @@ class ThermalTuneWidget(QtWidgets.QWidget):
                     password = self.session.sader_password, selectedCantCode = self.selectedCantCode
                 )
         self.update_plot()
+
+    def save_results_to_png(self):
+        if self.lq_thermal_text.text():
+            # Remove the .dat extension from self.filename
+            file_root = os.path.splitext(self.filename)[0]
+            # current_time = datetime.now().strftime("%Y_%m_%d_%H_%M_")
+            file_path = file_root + "_" + "_results.png"
+            exporter = ImageExporter(self.p1)
+            exporter.export(file_path)
+        else:
+            file_dialog = QtWidgets.QFileDialog(self)
+            file_dialog.setAcceptMode(QtWidgets.QFileDialog.AcceptSave)
+            file_dialog.setNameFilter("PNG files (*.png)")
+            file_dialog.setDefaultSuffix("png")
+            if file_dialog.exec_() == QtWidgets.QDialog.Accepted:
+                file_path = file_dialog.selectedFiles()[0]
+                exporter = ImageExporter(self.p1)
+                exporter.export(file_path)

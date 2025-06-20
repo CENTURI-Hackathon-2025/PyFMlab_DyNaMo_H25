@@ -11,6 +11,7 @@ pyFM_VERSION = "PyFMLab v.1.0.2"
 # FILE CONSTANTS ##################################################
 jpk_file_extensions = ('jpk-force', 'jpk-force-map', 'jpk-qi-data')
 nanoscope_file_extensions = ('spm', 'pfc')
+psnex_file_extension = ('psnex', 'tdms','PSNEX.tdms')
 
 # ANALYSIS CONSTANTS ##############################################
 available_geometries = ['paraboloid', 'cone', 'pyramid']
@@ -337,3 +338,10 @@ piezochar_params = [general_params, rheo_params]
 vdrag_params = [general_params, correction_params, rheo_params]
 
 microrheo_params = [general_params, correction_params, AnalysisParams(mode='microrheo', name='Analysis Params'), HertzFitParams(name='Hertz Fit Params')]
+
+# SADER API params ################################################
+SADER_API_version = 'Python API/0.20'
+SADER_API_type = 'text/xml'
+SADER_API_url = 'https://sadermethod.org/api/1.1/api.php'
+DEFAULT_SADER_USERNAME = ''
+DEFAULT_SADER_PASSWORD = ''

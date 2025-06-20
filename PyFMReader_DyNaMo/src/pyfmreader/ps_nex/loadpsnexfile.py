@@ -19,12 +19,14 @@ def loadPSNEXfile(filepath, UFF):
                     UFF (uff.UFF): UFF object containing the loaded metadata.
     """
     UFF.filemetadata = parsePSNEXheader(filepath)
-    #UFF.isFV = UFF.filemetadata["mapping_bool"]
+
     #key for the channel of ht and defleciton
 
-    UFF.filemetadata['found_vDeflection'] = True
-    UFF.filemetadata['height_channel_key'] = "Zpiezo stage (V)"
-    UFF.filemetadata['deflection_chanel_key'] = "Deflection (V)"
+    # UFF.filemetadata['found_vDeflection'] = True
+    # UFF.filemetadata['height_channel_key'] = "Zpiezo_stage_sensor_(V)"
+    #UFF.filemetadata['height_channel_key'] = "Zpiezo_stage_Vout_(V)"
+
+    # UFF.filemetadata['deflection_chanel_key'] = "Deflection_quotient_(V)"
     curve_properties = {}
 
     curve_indices =  UFF.filemetadata["Entry_tot_nb_curve"] 
@@ -41,13 +43,22 @@ def loadPSNEXfile(filepath, UFF):
         if not curve_id in curve_properties.keys():
             curve_properties.update({curve_id:{}})
 
-        curve_properties = parsePSNEXsegmentheader(filepath,curve_properties, segment_id,curve_id )
+        curve_properties = parsePSNEXsegmentheader(filepath,curve_properties, segment_id, UFF, curve_id)
 
     UFF.filemetadata['curve_properties'] = curve_properties
+    
+    #TODO what the hall have you done 
+    # UFF.isFV = UFF.filemetadata["mapping_bool"]
     UFF.filemetadata['isFV'] = False
+    # UFF.filemetadata['num_x_pixels'] = 32
+    # UFF.filemetadata['num_y_pixels'] = 32
+    # UFF.filemetadata['scan_size_x'] = 0
+    # UFF.filemetadata['scan_size_y'] = 0
     UFF.filemetadata['file_type'] = 'PSNEX.tdms'
 
     return UFF
+
+
 
 
     

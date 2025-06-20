@@ -138,18 +138,32 @@ class DataViewerWidget(QtWidgets.QWidget):
         self.p1.setLabel('bottom', xkey, x_units)
         self.p1.setTitle(f"{ykey}-{xkey}")
     
+    # def updateCurve(self):
+    #     idx = self.session.current_curve_index
+    #     height_channel = self.session.current_file.filemetadata['height_channel_key']
+    #     if self.session.global_involts is None:
+    #         deflection_sens = self.session.current_file.filemetadata['defl_sens_nmbyV'] / 1e9
+    #     else:
+    #         deflection_sens = self.session.global_involts
+    #     force_curve = self.session.current_file.getcurve(idx)
+    #     force_curve.preprocess_force_curve(deflection_sens, height_channel)
+    #     if self.session.current_file.filemetadata['file_type'] in cts.jpk_file_extensions:
+    #         force_curve.shift_height()
+    #     self.make_plot(force_curve)
+
     def updateCurve(self):
-        idx = self.session.current_curve_index
-        height_channel = self.session.current_file.filemetadata['height_channel_key']
-        if self.session.global_involts is None:
-            deflection_sens = self.session.current_file.filemetadata['defl_sens_nmbyV'] / 1e9
-        else:
-            deflection_sens = self.session.global_involts
-        force_curve = self.session.current_file.getcurve(idx)
-        force_curve.preprocess_force_curve(deflection_sens, height_channel)
-        if self.session.current_file.filemetadata['file_type'] in cts.jpk_file_extensions:
-            force_curve.shift_height()
-        self.make_plot(force_curve)
+        if self.session.current_file is not None:
+            idx = self.session.current_curve_index
+            height_channel = self.session.current_file.filemetadata['height_channel_key']
+            if self.session.global_involts is None:
+                deflection_sens = self.session.current_file.filemetadata['defl_sens_nmbyV'] / 1e9
+            else:
+                deflection_sens = self.session.global_involts
+            force_curve = self.session.current_file.getcurve(idx)
+            force_curve.preprocess_force_curve(deflection_sens, height_channel)
+            if self.session.current_file.filemetadata['file_type'] in cts.jpk_file_extensions:
+                force_curve.shift_height()
+            self.make_plot(force_curve)
     
     def updatePlots(self, item=None):
         if item is not None:

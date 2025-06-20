@@ -15,6 +15,12 @@ from ..constants import *
 #from .constants import *
 from nptdms import TdmsFile #from nptdms import tdms  # pip install nptdms
 
+def contains_word(sentence, word):
+    """
+    Returns True if 'word' is found in 'sentence', case-insensitive.
+    """
+    return word.lower() in sentence.lower()
+
 def parsePSNEXheader(filepath):
     """
     Function used to load the metadata of a PSNEX file.
@@ -36,10 +42,15 @@ def parsePSNEXheader(filepath):
     file_metadata["file_path"] = filepath
     file_metadata["Entry_filename"] = os.path.basename(filepath)
     file_metadata["file_size_bytes"] = os.path.getsize(filepath)
-    file_metadata["file_id"] = ps_nex_meta["filename"]
+    # file_metadata["file_id"] = ps_nex_meta.get("curve_id")
+    
     file_metadata["Entry_date"] = ps_nex_meta.get("date")
     file_metadata["Entry_tot_nb_curve"] = int(ps_nex_meta.get("number_consecutive_scans"))
 
+    #Experiment stuff
+    file_metadata["Entry_experiment_name"] = ps_nex_meta.get("experiment_name")
+    file_metadata["User"] = ps_nex_meta.get("user")
+    
     #Software version control
     file_metadata["psnex_file_format_version"] = ps_nex_meta.get("TDMS_HSFS_file_version")
     file_metadata["psnex_software_version"] = ps_nex_meta.get("FPGA_SW_version")
@@ -49,6 +60,10 @@ def parsePSNEXheader(filepath):
     file_metadata["instrument_clorckrate_(Mhz)"] = float(ps_nex_meta.get("instrument_clorckrate_(Mhz)"))
     file_metadata["instrument_tick_time_(us)"] = float(ps_nex_meta.get("instrument_tick_time_(us)"))
     file_metadata["instrument_tick_time_(s)"] = file_metadata["instrument_tick_time_(us)"]* 10**-6
+    #since enzo did it at 500kHz 12.03.2025
+    #TODO check this
+    #file_metadata["instrument_tick_time_(s)"] = 0.025* 10**-6
+
 
     file_metadata["instrument_model"] = ps_nex_meta.get("instrument_model")
     file_metadata["instrument_scanner"] = ps_nex_meta.get("instrument_scanner")
@@ -79,18 +94,31 @@ def parsePSNEXheader(filepath):
     file_metadata["system_mount_angle_(deg)"] = float(ps_nex_meta.get("system_mount_angle_(deg)"))
     axis_arr = ['X','Y','Z']
     for ax in axis_arr[:2]:
-        print(ps_nex_meta.get(f"system_{ax}_piezo_gain"))
+        # print(ps_nex_meta.get(f"system_{ax}_piezo_gain"))
         file_metadata[f"system_{ax}_piezo_gain"] = float(ps_nex_meta.get(f"system_{ax}_piezo_gain"))
         file_metadata[f"system_{ax}_piezo_sensitivity_(nm/V)"] = float(ps_nex_meta.get(f"system_{ax}_piezo_sensitivity_(nm/V)"))
 
     #mapping stuff 
+    #TODO add num of pixesl and pixel size
     file_metadata["mapping_bool"] = bool(ps_nex_meta.get("mapping_(bool)"))
     if file_metadata["mapping_bool"]:
+        
+        file_metadata["mapping_index"] = int(ps_nex_meta.get("mapping_index"))
+        file_metadata["mapping_position_X"] = int(ps_nex_meta.get("mapping_position_row"))
+        file_metadata["mapping_position_Y"] = int(ps_nex_meta.get("mapping_position_column"))
+ 
+        file_metadata["X_cur_position_V"] = float(ps_nex_meta.get("mapping_next_position_row"))
+        file_metadata["Y_cur_position_V"] = float(ps_nex_meta.get("mapping_next_position_column"))
+        file_metadata["mapping_X_initial_pos_V"] = float(ps_nex_meta.get("mapping_X_initial_position_(V)"))
+        file_metadata["mapping_Y_initial_pos_V"] = float(ps_nex_meta.get("mapping_Y_initial_position_(V)"))
+        file_metadata["mapping_X_step_size_V"] = float(ps_nex_meta.get("mapping_X_step_size_(V)"))
+        file_metadata["mapping_Y_step_size_V"] = float(ps_nex_meta.get("mapping_Y_step_size_(V)"))
     
         file_metadata["X_closed_loop_bool"] = bool(ps_nex_meta.get("X_closed_loop_(bool)"))
-        
         file_metadata["Y_closed_loop_bool"] = bool(ps_nex_meta.get("Y_closed_loop_(bool)"))
         file_metadata["Z_closed_loop_bool"] = bool(ps_nex_meta.get("Z_closed_loop_(bool)"))
+        
+
         for ax in axis_arr[:2]:
             if file_metadata[f"{ax}_closed_loop_bool"]:
                 file_metadata[f"{ax}_position_(V)"] = float(ps_nex_meta.get(f"{ax}_position_(V)"))
@@ -114,7 +142,7 @@ def parsePSNEXheader(filepath):
     file_metadata["cantilever_quality_factor"] = float(ps_nex_meta.get("cantilever_quality_factor"))
     return file_metadata
 
-def parsePSNEXsegmentheader(filepath,curve_properties,segment_id,curve_index=0):
+def parsePSNEXsegmentheader(filepath,curve_properties,segment_id, UFF, curve_index=0):
     """
     Function used to load the metadata of each segment for each force curve of a JPK file.
 
@@ -128,10 +156,19 @@ def parsePSNEXsegmentheader(filepath,curve_properties,segment_id,curve_index=0):
                     segment metadata (dict): Dictionary containing all the metadata for each force curve in the file.
     """
     tdms_file_ps_nex = TdmsFile.read_metadata(filepath)  
+    
+    ## UFF STUFF ONLY
+    UFF.filemetadata['height_channel_key'] = tdms_file_ps_nex.groups()[0].channels()[1].name
+    UFF.filemetadata['deflection_chanel_key'] = tdms_file_ps_nex.groups()[0].channels()[0].name
+    # # Check if deflection is in the channel name
+    UFF.filemetadata['found_vDeflection'] = contains_word(UFF.filemetadata['deflection_chanel_key'], 'deflection')
+    # UFF.filemetadata['found_vDeflection'] = True
+    # # check if zpiezo is in the channel name
 
     for group in tdms_file_ps_nex.groups():
         ps_nex_meta = (group.properties)
 
+    # Get from Group
     segment_metadata = {}
     tick_time_s = float(ps_nex_meta.get("instrument_tick_time_(us)"))* 10**-6
     z_stage_sensitivity = float(ps_nex_meta.get('system_Z_stage_piezo_sensitivity_(nm/V)'))
@@ -146,7 +183,7 @@ def parsePSNEXsegmentheader(filepath,curve_properties,segment_id,curve_index=0):
     segment_metadata[f"segment_{segment_id}_initial_deflection_(V)"] =float(ps_nex_meta.get(f"segment_{segment_id}_initial_deflection_(V)"))
     
     segment_metadata[f"segment_{segment_id}_nb"] = int(ps_nex_meta.get(f"segment_{segment_id}_nb"))
-    segment_metadata[f"segment_{segment_id}_nb_points_(points)"] =float(ps_nex_meta.get(f"segment_{segment_id}_nb_points_(points)"))
+    segment_metadata[f"segment_{segment_id}_nb_points_(points)"] =int(ps_nex_meta.get(f"segment_{segment_id}_nb_points_(points)"))
  
     segment_metadata[f"segment_{segment_id}_relative_setpoint_(bool)"] =bool(ps_nex_meta.get(f"segment_{segment_id}_relative_setpoint_(bool)"))
     segment_metadata[f"segment_{segment_id}_sampling_rate_(S/s)"] =float(ps_nex_meta.get(f"segment_{segment_id}_sampling_rate_(S/s)"))
@@ -159,9 +196,10 @@ def parsePSNEXsegmentheader(filepath,curve_properties,segment_id,curve_index=0):
     seg_i_pt_cal = int((segment_metadata[f"segment_{segment_id}_duration_(ticks)"]*segment_metadata[f'segment_{segment_id}_sampling_rate_(S/s)']*tick_time_s)/segment_metadata[f'segment_{segment_id}_dec_factor'])
     segment_metadata[f"segment_{segment_id}_nb_points_cal"] =seg_i_pt_cal
 
+    # added by Lorenzo june 10 2025
+    segment_metadata[f"segment_{segment_id}_initial_deflection_(V)"] = float(ps_nex_meta.get(f"segment_{segment_id}_initial_deflection_(V)"))
 
     #TODO what is segment baseline 
-    
     segment_metadata["time"] = float(ps_nex_meta.get("time"))
 
     
@@ -173,7 +211,6 @@ def parsePSNEXsegmentheader(filepath,curve_properties,segment_id,curve_index=0):
 
     # Compute ramp speed
     segment_metadata[f"segment_{segment_id}_ramp_speed_nm/s"] = float(ps_nex_meta.get(f'segment_{segment_id}_velocity(V/tick)'))*tick_time_s *z_stage_sensitivity
-
     curve_properties[curve_index].update({segment_id: segment_metadata})
     
     return curve_properties
