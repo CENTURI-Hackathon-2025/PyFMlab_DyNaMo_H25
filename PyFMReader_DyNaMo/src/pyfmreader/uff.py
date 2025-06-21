@@ -25,6 +25,7 @@ class ZipBufferStore:
 
     def get_zipfile(self):
         if not self._buffer:
+            return None
             raise RuntimeError("ZIP not loaded")
         self._buffer.seek(0)
         return ZipFile(self._buffer)
@@ -59,7 +60,7 @@ class UFF:
         # have additional image data.
         self.imagedata=None
         self.zf = None
-        self.zipbuffer=None
+        # self.zipbuffer=None
     
     def _loadcurve(self, curveidx, afmfile, file_type):
         """
