@@ -4,6 +4,130 @@ from scipy.special import gamma
 from lmfit import Model, Parameters
 from .geom_coeffs import get_coeff
 from ..utils.signal_processing import numdiff, smooth, hyp2f1_apprx
+import torch
+# import torch
+# from torch.special import gamma as gamma_torch
+
+
+
+# torch compatible functions
+def get_coeff_torch(indenter_type, tip_param, nu):
+    if indenter_type == 'sphere':
+        # Sphere: Hertzian contact
+        R = tip_param
+        coeff = (4 / 3) * torch.sqrt(R) / (1 - nu**2)
+        exp = 1.5
+    elif indenter_type == 'cone':
+        alpha = tip_param
+        coeff = (2 / torch.pi) * torch.tan(alpha) / (1 - nu**2)
+        exp = 2.0
+    elif indenter_type == 'flat':
+        a = tip_param
+        coeff = 2 * a / (1 - nu**2)
+        exp = 1.0
+    else:
+        raise ValueError(f"Unsupported indenter type: {indenter_type}")
+    return coeff, exp
+
+def numdiff_torch(y):
+    dy = torch.diff(y)
+    return torch.cat([dy[:1], dy])  # Pad to preserve length
+
+def smooth_torch(y, window=5):
+    if window < 2:
+        return y
+    kernel = torch.ones(window, device=y.device) / window
+    padding = window // 2
+    y_padded = torch.nn.functional.pad(y, (padding, padding), mode='replicate')
+    y_smoothed = torch.nn.functional.conv1d(
+        y_padded.view(1, 1, -1),
+        kernel.view(1, 1, -1),
+        padding=0
+    )
+    return y_smoothed.view(-1)
+
+def hyp2f1_apprx_torch(a, b, c, z):
+    # Simple approximation: 1 + ab/c z
+    return 1 + (a * b / c) * z
+
+def SolveAnalytical_torch(ttc, trc, t1, model_probe, geom_coeff, v0t, v0r, v0, E0, betaE, t0, F0, vdrag):
+    if model_probe == 'paraboloid':
+        Cp = 1.0 / geom_coeff
+        # gamma_1 = gamma_torch(1 - betaE)
+        g1 = (1 - betaE)
+        gamma_1 = torch.tensor(gamma(g1.cpu().numpy()))
+        # gamma_2 = gamma_torch(2.5 - betaE)
+        g2 = (2.5 - betaE )
+        gamma_2 = torch.tensor(gamma(g1.cpu().numpy()))
+
+        Ftp = (3 / 2) * v0t**1.5 * E0 * t0**betaE * torch.sqrt(torch.pi) * gamma_1 / (Cp * 2 * gamma_2) * ttc**(1.5 - betaE)
+
+        if torch.abs(v0r - v0t) / v0t < 0.01:
+            hyp = hyp2f1_apprx_torch(1, 0.5 - betaE, 0.5, t1 / trc)
+            Frp = 3 / Cp * E0 * v0**1.5 * t0**betaE / (3 + 4 * (betaE - 2) * betaE) \
+                  * t1**(-0.5) * (trc - t1)**(1 - betaE) * (-trc + (2 * betaE - 1) * t1 + trc * hyp)
+        else:
+            hyp = hyp2f1_apprx_torch(1, 0.5 - betaE, 0.5, t1 / trc)
+            Frp = 3 / Cp * E0 * v0t**1.5 * t0**betaE / (3 + 4 * (betaE - 2) * betaE) \
+                  * t1**(-0.5) * (trc - t1)**(1 - betaE) * (-trc + (2 * betaE - 1) * t1 + trc * hyp)
+
+        return torch.cat([Ftp, Frp])
+
+    elif model_probe in ('cone', 'pyramid'):
+        Cc = 1.0 / geom_coeff
+        denom = 2 - 3 * betaE + betaE**2
+        if torch.abs(v0r - v0t) / v0t < 0.01:
+            Ftc = 2 * v0**2 * E0 * t0**betaE / (Cc * denom) * ttc**(2 - betaE)
+            Frc = -2 * v0**2 * E0 * t0**betaE / (Cc * denom) * (
+                (trc - t1)**(1 - betaE) * (trc + (1 - betaE) * t1) - trc**(1 - betaE) * trc
+            )
+        else:
+            Ftc = 2 * v0t**2 * E0 * t0**betaE / (Cc * denom) * ttc**(2 - betaE)
+            Frc = -2 * v0t**2 * E0 * t0**betaE / (Cc * denom) * (
+                (trc - t1)**(1 - betaE) * (trc + (1 - betaE) * t1) - trc**(1 - betaE) * trc
+            )
+        return torch.cat([Ftc, Frc])
+
+    else:
+        raise ValueError(f"Unsupported probe: {model_probe}")
+    
+def SolveNumerical_torch(delta, time_, geom_coeff, geom_exp, v0t, v0r, E0, betaE, F0, vdrag, smooth_w, idx_tm, idxCt, idxCr):
+    device = delta.device
+    delta0 = delta - delta[idxCt[0]]
+
+    delta_Uto_dot = torch.zeros_like(delta0)
+    A = smooth(numdiff(delta0[idxCt]**geom_exp), smooth_w)
+    A = torch.cat([A, smooth(numdiff(delta0[idxCr[0]:]**geom_exp), smooth_w)])
+    delta_Uto_dot[idxCt[0]:idxCt[0]+len(A)] = A[:len(delta_Uto_dot[idxCt[0]:])]
+
+    delta_dot = torch.zeros_like(delta0)
+    B = smooth(numdiff(delta0[idxCt]), smooth_w)
+    B = torch.cat([B, smooth(numdiff(delta0[idxCr[0]:]), smooth_w)])
+    delta_dot[idxCt[0]:idxCt[0]+len(B)] = B[:len(delta_dot[idxCt[0]:])]
+
+    Ftc = torch.zeros(len(idxCt), device=device)
+    for i in range(len(idxCt)):
+        if i < 2:
+            continue  # Skip first point
+        idx = torch.arange(idxCt[0]+1, idxCt[0]+i, device=device)
+        if len(idx) > 0:
+            Ftc[i] = geom_coeff * E0 * torch.sum(delta_Uto_dot[idx] * time_[idx].flip(0)**(-betaE))
+
+    Frc = torch.zeros(len(idxCt), device=device)
+    for j in range(idx_tm + 1, idx_tm + len(idxCt)):
+        start = j - 1
+        stop = idxCt[1] - 1
+        if start <= stop:
+            continue
+        phi_range = torch.arange(start, stop - 1, -1, device=device)
+        phi0 = torch.cumsum((time_[phi_range]**(-betaE)) * delta_dot[phi_range + 2], dim=0).flip(0)
+        idx_min_phi0 = torch.argmin(torch.abs(phi0))
+        idxCr0 = torch.arange(j+1, j-idx_min_phi0.item(), -1, device=device)
+        t10 = time_[idxCr0]
+        idx = torch.arange(idxCt[0]+1, idxCt[0]+1+idx_min_phi0.item(), device=device)
+        Frc[j - idx_tm - 1] = geom_coeff * E0 * torch.trapz(delta_Uto_dot[idx] * t10**(-betaE), t10)
+
+    return torch.cat([Ftc, Frc])
 
 class TingModel:
     def __init__(self, ind_geom, tip_param, modelFt) -> None:
@@ -219,32 +343,127 @@ class TingModel:
         self.v0t = v0t
         self.v0r = v0r
         
-        # Define fixed params
+        # # Define fixed params
+        # fixed_params = {
+        #     't0': self.t0, 'F': F, 'delta': delta,
+        #     'modelFt': self.modelFt, 'vdrag': self.vdrag, 'smooth_w': self.smooth_w,
+        #     'idx_tm': self.idx_tm, 'v0t': self.v0t, 'v0r': self.v0r
+        # }
+        
+        # Use PyTorch for fitting
+
+        # Convert time and target to tensors
+        # Automatic device selection
+        if torch.cuda.is_available():
+            device = torch.device("cuda")
+        elif torch.backends.mps.is_available():
+            device = torch.device("mps")  # For M1/M2/M3 Macs
+        else:
+            device = torch.device("cpu")
+
+        print("Using device:", device)
+
+        # Convert fixed parameters to tensors on device
         fixed_params = {
-            't0': self.t0, 'F': F, 'delta': delta,
-            'modelFt': self.modelFt, 'vdrag': self.vdrag, 'smooth_w': self.smooth_w,
-            'idx_tm': self.idx_tm, 'v0t': self.v0t, 'v0r': self.v0r
+            't0': torch.tensor(self.t0, dtype=torch.float32, device=device),
+            'F': torch.tensor(F, dtype=torch.float32, device=device),
+            'delta': torch.tensor(delta, dtype=torch.float32, device=device),
+            'modelFt': self.modelFt,  # Keep as-is; it's a function
+            'vdrag': torch.tensor(self.vdrag, dtype=torch.float32, device=device),
+            'smooth_w': torch.tensor(self.smooth_w, dtype=torch.float32, device=device),
+            'idx_tm': self.idx_tm,  # Leave as-is unless used for tensor indexing
+            'v0t': torch.tensor(self.v0t, dtype=torch.float32, device=device),
+            'v0r': torch.tensor(self.v0r, dtype=torch.float32, device=device)
         }
         
-        # Prepare model for fit using fixed params
-        tingmodel =\
-            lambda time, E0, tc, betaE, F0: self.model(time, E0, tc, betaE, F0, **fixed_params)
-        
-        tingmodelfit = Model(tingmodel)
-        
-        # Define free params
-        params = self.build_params()
-        
-        # Do fit
-        self.n_params = len(tingmodelfit.param_names)
+        time_torch_0 = torch.tensor(time, dtype=torch.float32, device=device)
+        F_torch_0 = torch.tensor(F, dtype=torch.float32, device=device, requires_grad=True)
 
-        result_ting = tingmodelfit.fit(F, params, time=time, method=self.fit_method)
-        
+        # time_torch = time_torch_0.detach().cpu().numpy()
+        # F_torch = F_torch_0.detach().cpu().numpy()
+
+        # Get initial parameter values
+        init_params = self.build_params()
+        # Extract initial values for each parameter
+        E0_init = init_params['E0'].value
+        tc_init = init_params['tc'].value
+        betaE_init = init_params['betaE'].value
+        F0_init = init_params['F0'].value
+
+        # Initialize free parameters as torch tensors with gradients
+        E0 = torch.tensor([E0_init], dtype=torch.float32, requires_grad=True, device=device)
+        tc = torch.tensor([tc_init], dtype=torch.float32, requires_grad=True, device=device)
+        betaE = torch.tensor([betaE_init], dtype=torch.float32, requires_grad=True, device=device)
+        F0 = torch.tensor([F0_init], dtype=torch.float32, requires_grad=True, device=device)
+
+        params = [E0, tc, betaE, F0]
+        optimizer = torch.optim.Adam(params, lr=1e-3)
+        print (f'lr:    {optimizer.param_groups[0]["lr"]}')
+        n_iter = 50
+
+        # Optimization loop
+        for i in range(n_iter):
+            optimizer.zero_grad()
+            # Model prediction using self.model (must support torch tensors)
+            # Convert torch tensors to numpy for model function
+            F_model_np = self.model(
+                time_torch_0.cpu(),
+                E0.cpu().item(),
+                tc.cpu().item(),
+                betaE.cpu().item(),
+                F0.cpu().item(),
+                fixed_params['t0'].cpu().item(),
+                fixed_params['F'].cpu(),
+                fixed_params['delta'].cpu(),
+                fixed_params['modelFt'],
+                fixed_params['vdrag'].cpu().item(),
+                fixed_params['idx_tm'],
+                fixed_params['smooth_w'].cpu().item(),
+                fixed_params['v0t'].cpu().item(),
+                fixed_params['v0r'].cpu().item()
+            )
+            # F_model_np = self.model(
+            #     time_torch_0.to(device, dtype=torch.float32),
+            #     E0.to(device, dtype=torch.float32),
+            #     tc.to(device, dtype=torch.float32),
+            #     betaE.to(device, dtype=torch.float32),
+            #     F0.to(device, dtype=torch.float32),
+            #     fixed_params['t0'].to(device, dtype=torch.float32),
+            #     fixed_params['F'].to(device, dtype=torch.float32),
+            #     fixed_params['delta'].to(device, dtype=torch.float32),
+            #     torch.from_numpy(fixed_params['modelFt']).to(device, dtype=torch.float32),
+            #     fixed_params['vdrag'].to(device, dtype=torch.float32),
+            #     fixed_params['idx_tm'].to(device),  # dtype depends on index type
+            #     fixed_params['smooth_w'].to(device, dtype=torch.float32),
+            #     fixed_params['v0t'].to(device, dtype=torch.float32),
+            #     fixed_params['v0r'].to(device, dtype=torch.float32),
+            # )
+            # Convert model output back to torch tensor for loss calculation
+            F_model = torch.tensor(F_model_np, dtype=torch.float32, device=device, requires_grad=True)
+            loss = torch.mean((F_model - F_torch_0) ** 2)
+            loss.backward()
+            optimizer.step()
+
+        self.n_params = 4
+
+        # Collect fitted values into dictionary-like result
+        result_ting = {
+            "E0":    E0.detach().cpu().item(),
+            "tc":    tc.detach().cpu().item(),
+            "betaE": betaE.detach().cpu().item(),
+            "F0":    F0.detach().cpu().item(),
+            "loss":  loss.item(),
+        }
+
+
+        print (result_ting)
+        print (type(result_ting))
+
         # Assign fit results to model params
-        self.E0 = result_ting.best_values['E0']
-        self.tc = result_ting.best_values['tc']
-        self.betaE = result_ting.best_values['betaE']
-        self.F0 = result_ting.best_values['F0']
+        self.E0 = result_ting['E0']
+        self.tc = result_ting['tc']
+        self.betaE = result_ting['betaE']
+        self.F0 = result_ting['F0']
 
         # Compute metrics
         modelPredictions = self.eval(time, F, delta, t0, idx_tm, smooth_w, v0t, v0r)
