@@ -4,6 +4,7 @@ import pandas as pd
 import numpy as np
 import traceback
 import json
+import tifffile
 
 # Import for multiprocessing
 import concurrent.futures
@@ -213,4 +214,73 @@ def export_results(results, dirname, file_prefix):
             continue
         result_df.to_csv(os.path.join(dirname, f'{file_prefix}_{result_type}.csv'), index=False)
         success_flag = True
+    return success_flag
+
+
+def find_piezo_coord(nx,ny,file_ext = ''):
+    
+    piezoimg_corrd = np.arange(nx*ny).reshape((ny, nx))
+    
+    if file_ext =='jpk-force-map':
+        
+        piezoimg_corrd = np.asarray([row[::(-1)**i] for i, row in enumerate(piezoimg_corrd)])
+
+    map_corrd_2D = np.rot90(np.fliplr(piezoimg_corrd))
+
+    map_corrd_lin = map_corrd_2D.flatten()
+    return map_corrd_2D, map_corrd_lin
+    
+def array_flip_coor(arr,nx):
+    for i in range(nx):
+        arr[i] = arr[i]
+        if i%2==1:arr[i] = (np.flip(arr[i]))  
+    return(arr)
+
+def tiff_hertz_results(df_fileid, dirname, file_prefix):
+    name = df_fileid.iloc[0]['file_id']
+    first_row = df_fileid.iloc[0]
+    extension = first_row['file_id'].split('.')[-1]
+
+    name = df_fileid.iloc[0]['file_id']
+    nx, ny = json.loads(first_row['map_size_x_y_pixels'])
+    scan_size_x, scan_size_y = json.loads(first_row['scan_size_x_y_m'])
+
+    E_lin = np.nan*np.ones(nx*ny)
+    poc_lin = np.nan*np.ones(nx*ny)
+
+    map_corrd_2D, map_corrd_lin = find_piezo_coord(nx,ny,extension)
+    N_curve = len(map_corrd_lin)
+    for i in range(N_curve):
+        temp_cid = map_corrd_lin[i]
+        df_found = df_fileid[df_fileid['curve_idx'].isin([temp_cid])]
+        if len(df_found)==1:
+            E_lin[i] = df_found['hertz_E'].iloc[0]
+            # poc_lin[i]= df_found['hertz_poc'].iloc[0] +df_found['hertz_delta0'].iloc[0]
+            poc_lin[i]=df_found['hertz_delta0'].iloc[0]
+            #beta_lin[i] = df_found['ting_betaE'].iloc[0]
+            
+    #plotting the map       
+    #E_2d =  array_flip_coor( np.reshape(E_lin, (nx, ny)) ,nx)
+    E_2d =   np.reshape(E_lin, (nx, ny)) 
+    # poc_2d =   np.reshape(poc_lin, (nx, ny)) 
+    E_2d = np.flipud(E_2d)
+    if E_2d is not None:
+
+        tifffile.imwrite(os.path.join(dirname, f'{file_prefix}_{name}_hertz_results.tiff'), E_2d,
+                          resolution=(nx*1e-2/scan_size_x, ny*1e-2/scan_size_y),
+                          resolutionunit='CENTIMETER')
+        # success_flag = True
+    # return  success_flag
+
+def export_to_tiff(res, dirname, file_prefix):
+    success_flag = False
+    if isinstance(res, pd.DataFrame):
+        group_file = res.groupby(by='file_id')
+    
+        for name, df_fileid in group_file:
+            hertz_colums = [s for s in df_fileid.columns if s.startswith('hertz')]
+            if len(hertz_colums) >1:
+                tiff_hertz_results(df_fileid, dirname, file_prefix)
+                success_flag = True
+                
     return success_flag
