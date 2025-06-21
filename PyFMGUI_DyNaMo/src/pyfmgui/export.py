@@ -180,13 +180,18 @@ def prepare_export_results(session, progress_callback, range_callback, step_call
             count = 0
             range_callback.emit(len(files_metadata_and_results))
             file_results = []
-            with concurrent.futures.ProcessPoolExecutor() as executor:
-                # file_results = executor.map(partial(get_file_results, result_type), files_metadata_and_results)
-                futures = [executor.submit(get_file_results, result_type, fileinfo) for fileinfo in files_metadata_and_results]
-                for future in concurrent.futures.as_completed(futures):
-                    file_results.append(future.result())
-                    count+=1
-                    progress_callback.emit(count)
+            # Do not use parallelel processing for now
+            for fileinfo in files_metadata_and_results:
+                file_results.append(get_file_results(result_type, fileinfo))
+                count += 1
+                progress_callback.emit(count)
+            # with concurrent.futures.ProcessPoolExecutor() as executor:
+            #     # file_results = executor.map(partial(get_file_results, result_type), files_metadata_and_results)
+            #     futures = [executor.submit(get_file_results, result_type, fileinfo) for fileinfo in files_metadata_and_results]
+            #     for future in concurrent.futures.as_completed(futures):
+            #         file_results.append(future.result())
+            #         count+=1
+            #         progress_callback.emit(count)
             # Flatten result list
             flat_file_results = [item for sublist in file_results for item in sublist]
             # Create dataframe from list of dicts
