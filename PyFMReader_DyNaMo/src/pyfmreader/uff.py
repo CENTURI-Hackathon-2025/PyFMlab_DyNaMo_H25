@@ -2,7 +2,9 @@
 # Used to store data and metadata.
 
 from zipfile import ZipFile
+from io import BytesIO
 
+# from .jpk.loadjpkfile import zipbuffer
 from .constants import *
 from .jpk.loadjpkcurve import loadJPKcurve
 from .jpk.loadjpkimg import computeJPKPiezoImg
@@ -11,6 +13,24 @@ from .nanosc.loadnanoscimg import loadNANOSCimg
 from .ps_nex.loadpsnexcurve import loadPSNEXcurve
 from .load_uff import loadUFFcurve
 from .save_uff import saveUFFtxt
+
+
+class ZipBufferStore:
+    def __init__(self):
+        self._buffer = None
+
+    def load(self, path):
+        with open(path, "rb") as f:
+            self._buffer = BytesIO(f.read())
+
+    def get_zipfile(self):
+        if not self._buffer:
+            return None
+            raise RuntimeError("ZIP not loaded")
+        self._buffer.seek(0)
+        return ZipFile(self._buffer)
+    
+zip_store = ZipBufferStore()
 
 class UFF:
     """
@@ -39,6 +59,8 @@ class UFF:
         # In files like JPK scans you may
         # have additional image data.
         self.imagedata=None
+        self.zf = None
+        # self.zipbuffer=None
     
     def _loadcurve(self, curveidx, afmfile, file_type):
         """
@@ -90,9 +112,12 @@ class UFF:
         """
         file_type = self.filemetadata['file_type']
         if file_type in jpkfiles:
-            with open(self.filemetadata['file_path'], 'rb') as file:
-                afmfile = ZipFile(file)
-                FC = self._loadcurve(curveidx, afmfile, file_type)
+            # self.zipbuffer.seek(0)
+            
+            # zf = ZipFile(self.zipbuffer)
+                
+                # afmfile = ZipFile(file)
+                FC = self._loadcurve(curveidx, self.zf, file_type)
         elif file_type[1:].isdigit() or file_type in nanoscfiles:
             FC = self._loadcurve(curveidx, None, file_type)
         elif file_type in ufffiles:

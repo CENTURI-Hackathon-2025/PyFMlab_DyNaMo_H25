@@ -1,9 +1,13 @@
 import os
+from io import BytesIO
 from itertools import groupby
 from zipfile import ZipFile
 from .parsejpkheader import parseJPKheader, parseJPKsegmentheader
 from .loadjpkimg import loadJPKimg
 
+
+
+        
 def loadJPKfile(filepath, UFF, filesuffix):
     """
     Function used to load the metadata of a JPK file.
@@ -94,5 +98,6 @@ def loadJPKfile(filepath, UFF, filesuffix):
         UFF.filemetadata['height_channel_key'] = height_channel_key
 
         UFF.filemetadata['curve_properties'] = curve_properties
+
 
     return UFF

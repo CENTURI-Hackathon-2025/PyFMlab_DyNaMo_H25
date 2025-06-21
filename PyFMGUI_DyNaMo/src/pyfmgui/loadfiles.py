@@ -8,6 +8,14 @@ from pyfmreader import loadfile
 # Get constants
 import pyfmgui.const as const
 
+
+# file_loader.py
+from zipfile import ZipFile
+from io import BytesIO
+
+
+
+
 def load_single_file(filepath):
     try:
         file = loadfile(filepath)

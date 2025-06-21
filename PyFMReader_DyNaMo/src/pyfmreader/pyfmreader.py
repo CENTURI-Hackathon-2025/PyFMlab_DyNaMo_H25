@@ -3,6 +3,10 @@
 # AFM data format files.
 
 import os
+from io import BytesIO
+from zipfile import ZipFile
+from .uff import zip_store
+
 from .constants import *
 from .jpk.loadjpkfile import loadJPKfile
 from .jpk.loadjpkthermalfile import loadJPKThermalFile
@@ -11,7 +15,9 @@ from .ps_nex.loadpsnexfile import loadPSNEXfile
 from .load_uff import loadUFFtxt
 from .uff import UFF
 
-def loadfile(filepath):
+
+
+def loadfile(filepath, filebytes=None):
     """
     Load AFM file. 
     
@@ -44,11 +50,18 @@ def loadfile(filepath):
 
     uffobj = UFF()
 
+    
+    if zip_store.get_zipfile() == None:
+        zip_store.load(filepath)
+
+    uffobj.zf = zip_store.get_zipfile()
+
     if filesuffix[1:].isdigit() or filesuffix in nanoscfiles:
         return loadNANOSCfile(filepath, uffobj)
 
     elif filesuffix in jpkfiles:
         return loadJPKfile(filepath, uffobj, filesuffix)
+
     
     elif filesuffix in ufffiles:
         return loadUFFtxt(filepath, uffobj)
@@ -62,3 +75,6 @@ def loadfile(filepath):
     
     else:
         Exception(f"Can not load file: {filepath}")
+
+
+
