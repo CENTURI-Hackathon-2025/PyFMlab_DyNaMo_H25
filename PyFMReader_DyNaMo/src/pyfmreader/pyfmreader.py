@@ -10,6 +10,7 @@ from .nanosc.loadnanoscfile import loadNANOSCfile
 from .ps_nex.loadpsnexfile import loadPSNEXfile
 from .load_uff import loadUFFtxt
 from .uff import UFF
+from zipfile import ZipFile
 
 def loadfile(filepath):
     """
@@ -43,6 +44,7 @@ def loadfile(filepath):
     else: filesuffix = split_path[-1]
 
     uffobj = UFF()
+
 
     if filesuffix[1:].isdigit() or filesuffix in nanoscfiles:
         return loadNANOSCfile(filepath, uffobj)

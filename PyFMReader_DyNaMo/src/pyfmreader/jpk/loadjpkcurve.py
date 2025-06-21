@@ -4,6 +4,7 @@
 from struct import unpack
 from itertools import groupby
 import numpy as np
+import os
 
 from ..utils.forcecurve import ForceCurve
 from ..utils.segment import Segment
@@ -53,8 +54,11 @@ def loadJPKcurve(paths, afm_file, curve_index, file_metadata):
                 elif 'short' in conversion_factors["encoder_type"]:
                     divider = 2
                     format_id = 'h'
-                nbr_points = afm_file.getinfo(path).file_size // divider
-                filecontents = afm_file.read(path)
+                fpath = os.path.join(afm_file, path)
+                nbr_points = os.path.getsize(fpath)  // divider
+                with open(fpath, 'rb') as f:
+                    # nbr_points = f.getinfo().file_size // divider
+                    filecontents = f.read()
                 data_raw = unpack(f">{str(nbr_points)}{format_id}", filecontents)
                 segment_raw_data[data_type] = data_raw
         

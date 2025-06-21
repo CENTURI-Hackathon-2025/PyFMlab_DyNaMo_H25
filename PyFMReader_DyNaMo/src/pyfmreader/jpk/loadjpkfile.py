@@ -3,6 +3,8 @@ from itertools import groupby
 from zipfile import ZipFile
 from .parsejpkheader import parseJPKheader, parseJPKsegmentheader
 from .loadjpkimg import loadJPKimg
+import tempfile
+
 
 def loadJPKfile(filepath, UFF, filesuffix):
     """
@@ -16,6 +18,13 @@ def loadJPKfile(filepath, UFF, filesuffix):
             Returns:
                     UFF (uff.UFF): UFF object containing the loaded metadata.
     """
+
+    temp_cache_dir = tempfile.mkdtemp(dir='/Users/pateria/Work/Coding/Temp/Hackathon 2025/Dataset')
+    
+    # Extract ZIP to temp dir
+    with ZipFile(filepath, 'r') as zip_ref:
+        zip_ref.extractall(temp_cache_dir)
+
     with open(filepath, 'rb') as file:
         afm_file = ZipFile(file)
         # Get global metadata stored in the files: header.properties and shared-data/header.properties
@@ -95,4 +104,5 @@ def loadJPKfile(filepath, UFF, filesuffix):
 
         UFF.filemetadata['curve_properties'] = curve_properties
 
+        UFF.cachepath = temp_cache_dir
     return UFF
