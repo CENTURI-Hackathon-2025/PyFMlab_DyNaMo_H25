@@ -1,5 +1,5 @@
 # Import for multiprocessing
-import concurrent.futures
+# import concurrent.futures
 import contextlib
 from functools import partial
 # Import logging and get global logger
@@ -114,13 +114,18 @@ def process_sfc(session, params, filedict, method, progress_callback, range_call
     count = 0
     range_callback.emit(len(fdc_to_process))
     step_callback.emit('Step 2/2: Computing')
-    with concurrent.futures.ProcessPoolExecutor() as executor:
-        futures = [executor.submit(analyze_fdc, params, fdc) for fdc in fdc_to_process]
-        with contextlib.suppress(concurrent.futures.TimeoutError):
-            for future in concurrent.futures.as_completed(futures):
-                file_results.append(future.result())
-                count+=1
-                progress_callback.emit(count)
+    ## Do not use concurrent here
+    for fdc in fdc_to_process:
+        file_results.append(analyze_fdc(params, fdc))
+        count += 1
+        progress_callback.emit(count)
+    # with concurrent.futures.ProcessPoolExecutor() as executor:
+    #     futures = [executor.submit(analyze_fdc, params, fdc) for fdc in fdc_to_process]
+    #     with contextlib.suppress(concurrent.futures.TimeoutError):
+    #         for future in concurrent.futures.as_completed(futures):
+    #             file_results.append(future.result())
+    #             count+=1
+    #             progress_callback.emit(count)
     # Save results
     save_file_results(session, params, file_results)
 
@@ -141,13 +146,18 @@ def process_maps(session, params, filedict, method, progress_callback, range_cal
         nb_curves = file.filemetadata['Entry_tot_nb_curve']
         range_callback.emit(nb_curves)
         step_callback.emit('Step 1/2: Preprocessing')
-        with concurrent.futures.ProcessPoolExecutor() as executor:
-            futures = [executor.submit(prepare_map_fdc, file, params, curveidx) for curveidx in range(nb_curves)]
-            with contextlib.suppress(concurrent.futures.TimeoutError):
-                for future in concurrent.futures.as_completed(futures):
-                    raw_fdc_to_process.append(future.result())
-                    count+=1
-                    progress_callback.emit(count)
+        # Do not use concurrent here 
+        for curveidx in range(nb_curves):
+            raw_fdc_to_process.append(prepare_map_fdc(file, params, curveidx))
+            count+=1
+            progress_callback.emit(count)
+        # with concurrent.futures.ProcessPoolExecutor() as executor:
+        #     futures = [executor.submit(prepare_map_fdc, file, params, curveidx) for curveidx in range(nb_curves)]
+        #     with contextlib.suppress(concurrent.futures.TimeoutError):
+        #         for future in concurrent.futures.as_completed(futures):
+        #             raw_fdc_to_process.append(future.result())
+        #             count+=1
+        #             progress_callback.emit(count)
         # Check for errors
         for item in raw_fdc_to_process:
             if type(item) is tuple:
@@ -160,14 +170,20 @@ def process_maps(session, params, filedict, method, progress_callback, range_cal
         count = 0
         range_callback.emit(len(fdc_to_process))
         step_callback.emit('Step 2/2: Computing')
-        with concurrent.futures.ProcessPoolExecutor() as executor:
-            # file_results = executor.map(partial(analyze_fdc, params), fdc_to_process)
-            futures = [executor.submit(analyze_fdc, params, fdc) for fdc in fdc_to_process]
-            with contextlib.suppress(concurrent.futures.TimeoutError):
-                for future in concurrent.futures.as_completed(futures):
-                    file_results.append(future.result())
-                    count+=1
-                    progress_callback.emit(count)
+        # Do not use concurrent here
+        for fdc in fdc_to_process:
+            file_results.append(analyze_fdc(params, fdc))
+            count += 1
+            progress_callback.emit(count)
+
+        # with concurrent.futures.ProcessPoolExecutor() as executor:
+        #     # file_results = executor.map(partial(analyze_fdc, params), fdc_to_process)
+        #     futures = [executor.submit(analyze_fdc, params, fdc) for fdc in fdc_to_process]
+        #     with contextlib.suppress(concurrent.futures.TimeoutError):
+        #         for future in concurrent.futures.as_completed(futures):
+        #             file_results.append(future.result())
+        #             count+=1
+        #             progress_callback.emit(count)
         file_results = list(file_results)
         for file_result in file_results:
             if 'error' in file_result:
