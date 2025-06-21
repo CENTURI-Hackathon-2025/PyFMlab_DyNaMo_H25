@@ -5,6 +5,9 @@ from zipfile import ZipFile
 from .parsejpkheader import parseJPKheader, parseJPKsegmentheader
 from .loadjpkimg import loadJPKimg
 
+
+
+        
 def loadJPKfile(filepath, UFF, filesuffix):
     """
     Function used to load the metadata of a JPK file.
@@ -96,9 +99,5 @@ def loadJPKfile(filepath, UFF, filesuffix):
 
         UFF.filemetadata['curve_properties'] = curve_properties
 
-        zipdata = file.read()
-        zipbuffer = BytesIO(zipdata)
-        # global zipbuffer
-        UFF.zipbuffer = zipbuffer
 
     return UFF
