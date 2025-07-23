@@ -2,6 +2,7 @@ import sys
 import multiprocessing
 import PyQt5
 from pyqtgraph.Qt import QtGui, QtCore, QtWidgets
+from PyQt5.QtWidgets import QMessageBox  
 
 # Imports needed to give PyQT5 reference about these
 # objects when freezing the code.
@@ -23,6 +24,8 @@ def main():
 	
 	# Define the colour palette of the application:
 	palette = QtGui.QPalette()
+	#palette.setColor(QtGui.QPalette.Base, QtGui.QColor(204, 255, 204))  # Light green
+
 	palette.setColor(QtGui.QPalette.Window, QtGui.QColor(53, 53, 53))
 	palette.setColor(QtGui.QPalette.WindowText, QtCore.Qt.white)
 	palette.setColor(QtGui.QPalette.Base, QtGui.QColor(25, 25, 25))
@@ -39,7 +42,14 @@ def main():
 	
 	# Set colour palette on the application.
 	app.setPalette(palette)
-	
+
+	# Show a warning pop-up
+	warning_box = QMessageBox()
+	warning_box.setIcon(QMessageBox.Warning)
+	warning_box.setWindowTitle("WARNING")
+	warning_box.setText("Do you want to use the very FAST version of the code (EXPERIMENTAL)?")
+	warning_box.setStandardButtons(QMessageBox.Ok)
+	warning_box.exec_()
 	# Create session object to hold data and results
 	session = Session()
 

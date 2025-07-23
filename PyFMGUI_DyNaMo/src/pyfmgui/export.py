@@ -4,6 +4,7 @@ import pandas as pd
 import numpy as np
 import traceback
 import json
+import tifffile
 
 # Import for multiprocessing
 import concurrent.futures
@@ -162,6 +163,7 @@ def prepare_export_results(session, progress_callback, range_callback, step_call
         'vdrag_results': session.vdrag_results,
         'microrheo_results': session.microrheo_results
     }
+    
     # Dictionary to output results
     output = {
         'hertz_results': None,
@@ -214,3 +216,109 @@ def export_results(results, dirname, file_prefix):
         result_df.to_csv(os.path.join(dirname, f'{file_prefix}_{result_type}.csv'), index=False)
         success_flag = True
     return success_flag
+
+
+def find_piezo_coord(nx,ny,file_ext = ''):
+    
+    piezoimg_corrd = np.arange(nx*ny).reshape((ny, nx))
+    
+    if file_ext =='jpk-force-map':
+        
+        piezoimg_corrd = np.asarray([row[::(-1)**i] for i, row in enumerate(piezoimg_corrd)])
+
+    map_corrd_2D = np.rot90(np.fliplr(piezoimg_corrd))
+
+    map_corrd_lin = map_corrd_2D.flatten()
+    return map_corrd_2D, map_corrd_lin
+    
+
+def tiff_results(df_fileid, dirname, file_prefix, result_type):
+    success_check = 0
+
+    # Input validation
+    if not isinstance(df_fileid, pd.DataFrame) or df_fileid.empty:
+        return
+
+    first_row = df_fileid.iloc[0]
+    name = first_row['file_id']
+    extension = name.split('.')[-1]
+    nx, ny = json.loads(first_row['map_size_x_y_pixels'])
+    scan_size_x, scan_size_y = json.loads(first_row['scan_size_x_y_m'])
+
+    Param1_lin = np.nan * np.ones(nx * ny)
+    Param2_lin = np.nan * np.ones(nx * ny)
+    _, map_corrd_lin = find_piezo_coord(nx, ny, extension)
+    N_curve = len(map_corrd_lin)
+
+    # Assign result field names only once
+    result_id_1 = None
+    result_id_2 = None
+    if result_type == 'hertz_results':
+        result_id_1 = 'hertz_E'
+        result_id_2 = 'hertz_delta0'
+    elif result_type == 'ting_results':
+        result_id_1 = 'ting_E0'
+        result_id_2 = 'ting_betaE'
+    else:
+        # Unknown result_type
+        return
+
+    for i in range(N_curve):
+        temp_cid = map_corrd_lin[i]
+        df_found = df_fileid[df_fileid['curve_idx'].isin([temp_cid])]
+        if len(df_found) == 1:
+            Param1_lin[i] = df_found[result_id_1].iloc[0]
+            Param2_lin[i] = df_found[result_id_2].iloc[0]
+
+    # Reshape and flip maps
+    Map_2d_1 = np.reshape(Param1_lin, (nx, ny))
+    Map_2d_1 = np.flipud(Map_2d_1)
+    Map_2d_2 = np.reshape(Param2_lin, (nx, ny))
+    Map_2d_2= np.flipud(Map_2d_2)
+
+
+    # Save TIFFs if arrays are valid
+    if Map_2d_1 is not None:
+
+        tifffile.imwrite(
+            os.path.join(dirname, f'{file_prefix}_{result_id_1}_{name}.tiff'),
+            Map_2d_1,
+            resolution=(nx * 1e-2 / scan_size_x, ny * 1e-2 / scan_size_y),
+            resolutionunit='CENTIMETER'
+        )
+        success_check += 1
+
+    if Map_2d_2 is not None:
+        tifffile.imwrite(
+            os.path.join(dirname, f'{file_prefix}_{result_id_2}_{name}.tiff'),
+            Map_2d_2,
+            resolution=(nx * 1e-2 / scan_size_x, ny * 1e-2 / scan_size_y),
+            resolutionunit='CENTIMETER'
+        )
+        success_check += 1
+        
+    return success_check
+
+def export_to_tiff(res, dirname, file_prefix, result_type):
+    success_flag = False
+    if isinstance(res, pd.DataFrame):
+        group_file = res.groupby(by='file_id')
+    
+        for name, df_fileid in group_file:
+            # hertz_colums = [s for s in df_fileid.columns if s.startswith('hertz')]
+            # if len(hertz_colums) >1:
+            success_check = tiff_results(df_fileid, dirname, file_prefix, result_type)
+            if success_check == 2:
+                success_flag = True
+    return success_flag
+
+# def export_to_tiff_universal(results, dirname, file_prefix, result_type):
+#     success_flag = False
+#     for result_type, result_df in results.items():
+#         if result_df is None:
+#             continue
+#         result_df.to_csv(os.path.join(dirname, f'{file_prefix}_{result_type}.csv'), index=False)
+#         success_flag = True
+#     return success_flag
+
+    

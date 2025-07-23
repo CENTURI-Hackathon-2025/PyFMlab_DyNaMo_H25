@@ -8,14 +8,6 @@ from pyfmreader import loadfile
 # Get constants
 import pyfmgui.const as const
 
-
-# file_loader.py
-from zipfile import ZipFile
-from io import BytesIO
-
-
-
-
 def load_single_file(filepath):
     try:
         file = loadfile(filepath)
@@ -31,8 +23,8 @@ def loadfiles(session, filelist, progress_callback, range_callback, step_callbac
     files_to_load = [path for path in filelist if path not in session.loaded_files_paths]
     loaded_files = []
     count = 0
-    with concurrent.futures.ProcessPoolExecutor() as executor:
-        # loaded_files = executor.map(load_single_file, files_to_load)
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        #loaded_files = executor.map(load_single_file, files_to_load)
         futures = [executor.submit(load_single_file, filepath) for filepath in files_to_load]
         for future in concurrent.futures.as_completed(futures):
             loaded_files.append(future.result())

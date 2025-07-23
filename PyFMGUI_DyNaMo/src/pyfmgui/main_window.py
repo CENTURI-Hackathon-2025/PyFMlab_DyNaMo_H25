@@ -30,7 +30,7 @@ class MainWindow(QtWidgets.QMainWindow):
 		self.init_gui()
 		
 	def init_gui(self):
-		self.setWindowTitle(pyFM_VERSION)
+		self.setWindowTitle("Accelerated code (EXPERIMENTAL)")
 
 		self.mdi = QtWidgets.QMdiArea()
 		self.setCentralWidget(self.mdi)

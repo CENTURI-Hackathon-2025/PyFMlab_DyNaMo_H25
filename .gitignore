@@ -5,7 +5,7 @@ __pycache__/
 
 # C extensions
 *.so
-
+YS_reader/
 # Distribution / packaging
 .Python
 build/

@@ -17,7 +17,8 @@ from .uff import UFF
 
 
 
-def loadfile(filepath, filebytes=None):
+
+def loadfile(filepath):
     """
     Load AFM file. 
     
@@ -50,16 +51,14 @@ def loadfile(filepath, filebytes=None):
 
     uffobj = UFF()
 
-    
-    if zip_store.get_zipfile() == None:
-        zip_store.load(filepath)
-
-    uffobj.zf = zip_store.get_zipfile()
 
     if filesuffix[1:].isdigit() or filesuffix in nanoscfiles:
         return loadNANOSCfile(filepath, uffobj)
 
     elif filesuffix in jpkfiles:
+        zip_store.load(filepath)
+        uffobj.zf = zip_store.get_zipfile()
+
         return loadJPKfile(filepath, uffobj, filesuffix)
 
     
