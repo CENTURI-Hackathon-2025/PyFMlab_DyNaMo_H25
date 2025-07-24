@@ -5,7 +5,6 @@
 import os
 from io import BytesIO
 from zipfile import ZipFile
-from .uff import zip_store
 
 from .constants import *
 from .jpk.loadjpkfile import loadJPKfile
@@ -14,7 +13,7 @@ from .nanosc.loadnanoscfile import loadNANOSCfile
 from .ps_nex.loadpsnexfile import loadPSNEXfile
 from .load_uff import loadUFFtxt
 from .uff import UFF
-
+from .uff import CachedZipStore
 
 
 
@@ -56,9 +55,9 @@ def loadfile(filepath):
         return loadNANOSCfile(filepath, uffobj)
 
     elif filesuffix in jpkfiles:
-        zip_store.load(filepath)
-        uffobj.zf = zip_store.get_zipfile()
-
+        uffobj.zipbuffer= CachedZipStore()
+        uffobj.zipbuffer.load(filepath)
+        
         return loadJPKfile(filepath, uffobj, filesuffix)
 
     

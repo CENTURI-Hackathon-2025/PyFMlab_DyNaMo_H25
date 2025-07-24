@@ -53,8 +53,9 @@ def loadJPKcurve(paths, afm_file, curve_index, file_metadata):
                 elif 'short' in conversion_factors["encoder_type"]:
                     divider = 2
                     format_id = 'h'
-                nbr_points = afm_file.getinfo(path).file_size // divider
-                filecontents = afm_file.read(path)
+                #this now reads from the cache, so it is not necessary 
+                nbr_points = afm_file.get_file_size(path) // divider
+                filecontents = afm_file.get_file(path)
                 data_raw = unpack(f">{str(nbr_points)}{format_id}", filecontents)
                 segment_raw_data[data_type] = data_raw
         

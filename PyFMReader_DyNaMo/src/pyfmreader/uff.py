@@ -3,6 +3,7 @@
 
 from zipfile import ZipFile
 from io import BytesIO
+from functools import lru_cache
 
 # from .jpk.loadjpkfile import zipbuffer
 from .constants import *
@@ -13,6 +14,46 @@ from .nanosc.loadnanoscimg import loadNANOSCimg
 from .ps_nex.loadpsnexcurve import loadPSNEXcurve
 from .load_uff import loadUFFcurve
 from .save_uff import saveUFFtxt
+
+class CachedZipStore:
+    def __init__(self):
+        self._zip_path = None
+        self._zipfile = None
+
+    def load(self, path):
+        self._zip_path = path
+        self._zipfile = ZipFile(self._zip_path, mode='r')
+
+    def list_files(self):
+        if not self._zipfile:
+            raise RuntimeError("ZIP not loaded")
+        return self._zipfile.namelist()
+
+    @lru_cache(maxsize=128)
+    def get_file(self, name):
+        if not self._zipfile:
+            raise RuntimeError("ZIP not loaded")
+        with self._zipfile.open(name) as f:
+            return f.read()
+
+    def close(self):
+        if self._zipfile:
+            self._zipfile.close()
+            self._zipfile = None
+
+    def get_file_size(self, name):
+        if not self._zipfile:
+            raise RuntimeError("ZIP not loaded")
+        return self._zipfile.getinfo(name).file_size
+    def __del__(self):
+        # Ensure the ZIP file is closed if not already
+        self.close()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
 
 
 class ZipBufferStore:
@@ -29,7 +70,6 @@ class ZipBufferStore:
         self._buffer.seek(0)
         return ZipFile(self._buffer)
     
-zip_store = ZipBufferStore()
 
 class UFF:
     """
@@ -111,12 +151,10 @@ class UFF:
         """
         file_type = self.filemetadata['file_type']
         if file_type in jpkfiles:
-            # self.zipbuffer.seek(0)
-            
-            # zf = ZipFile(self.zipbuffer)
-                
-                # afmfile = ZipFile(file)
-                FC = self._loadcurve(curveidx, self.zf, file_type)
+           
+                #FC = self._loadcurve(curveidx, self.zf, file_type)
+                FC = self._loadcurve(curveidx, self.zipbuffer, file_type)
+
         elif file_type[1:].isdigit() or file_type in nanoscfiles:
             FC = self._loadcurve(curveidx, None, file_type)
         elif file_type in ufffiles:
