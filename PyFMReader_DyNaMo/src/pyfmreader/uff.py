@@ -24,7 +24,7 @@ class CachedZipStore:
         self._zip_path = path
         self._zipfile = ZipFile(self._zip_path, mode='r')
 
-    def list_files(self):
+    def namelist(self):
         if not self._zipfile:
             raise RuntimeError("ZIP not loaded")
         return self._zipfile.namelist()
@@ -56,19 +56,7 @@ class CachedZipStore:
         self.close()
 
 
-class ZipBufferStore:
-    def __init__(self):
-        self._buffer = None
 
-    def load(self, path):
-        with open(path, "rb") as f:
-            self._buffer = BytesIO(f.read())
-
-    def get_zipfile(self):
-        if not self._buffer:
-            raise RuntimeError("ZIP not loaded")
-        self._buffer.seek(0)
-        return ZipFile(self._buffer)
     
 
 class UFF:
@@ -98,39 +86,8 @@ class UFF:
         # In files like JPK scans you may
         # have additional image data.
         self.imagedata=None
-        self.zf = None
         self.zipbuffer=None
     
-    def _loadcurve(self, curveidx, afmfile, file_type):
-        """
-        Hidden function used to load a single curve from a file.
-        
-        Supported formats:
-            - JPK --> .jpk-force, .jpk-force-map, .jpk-qi-data
-            - NANOSCOPE --> .spm, .pfc
-            - UFF --> .uff
-            - PS-NEX --> .tdms 
-
-                Parameters:
-                        curveidx (int): Index of curve to load.
-                        afmfile (ZipFile): Buffer containing the data of the AFM file. Only used for JPK files.
-                        file_type (str): File extension.
-                
-                Returns:
-                        FC (utils.forcecurve.ForceCurve): ForceCurve object containing the force curve data.
-        """
-        if file_type in jpkfiles:
-            curvepaths = self._groupedpaths[curveidx]
-            FC = loadJPKcurve(
-                curvepaths, afmfile, curveidx, self.filemetadata
-            )
-        elif file_type[1:].isdigit() or file_type in nanoscfiles:
-            FC = loadNANOSCcurve(curveidx, self.filemetadata)
-        elif file_type in ufffiles:
-            FC = loadUFFcurve(self.filemetadata)
-        elif file_type in psnexfiles:
-            FC = loadPSNEXcurve(self.filemetadata,curveidx)    
-        return FC
 
     def getcurve(self, curveidx):
         """
@@ -151,16 +108,16 @@ class UFF:
         """
         file_type = self.filemetadata['file_type']
         if file_type in jpkfiles:
-           
-                #FC = self._loadcurve(curveidx, self.zf, file_type)
-                FC = self._loadcurve(curveidx, self.zipbuffer, file_type)
-
+            curvepaths = self._groupedpaths[curveidx]
+            FC = loadJPKcurve(
+                curvepaths, self.zipbuffer, curveidx, self.filemetadata)
         elif file_type[1:].isdigit() or file_type in nanoscfiles:
-            FC = self._loadcurve(curveidx, None, file_type)
+            FC = loadNANOSCcurve(curveidx, self.filemetadata)
+
         elif file_type in ufffiles:
-            FC = self._loadcurve(None, None, file_type)
+            FC = loadUFFcurve(self.filemetadata)
         elif file_type in psnexfiles:
-            FC = self._loadcurve(curveidx, None, file_type)
+            FC = loadPSNEXcurve(self.filemetadata,curveidx) 
         return FC
     
     def getpiezoimg(self):

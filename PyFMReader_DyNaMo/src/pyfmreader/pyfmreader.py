@@ -3,8 +3,6 @@
 # AFM data format files.
 
 import os
-from io import BytesIO
-from zipfile import ZipFile
 
 from .constants import *
 from .jpk.loadjpkfile import loadJPKfile
@@ -55,6 +53,7 @@ def loadfile(filepath):
         return loadNANOSCfile(filepath, uffobj)
 
     elif filesuffix in jpkfiles:
+        #storing the file into cached zip store
         uffobj.zipbuffer= CachedZipStore()
         uffobj.zipbuffer.load(filepath)
         

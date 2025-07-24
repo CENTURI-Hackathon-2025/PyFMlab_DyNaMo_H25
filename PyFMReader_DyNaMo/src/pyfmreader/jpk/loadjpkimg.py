@@ -129,11 +129,12 @@ def computeJPKPiezoImg(UFF):
     if file_type in ("jpk-force-map", "jpk-qi-data"):
         # Get height key
         # Get the last value of the first approach segment.
-        with open(UFF.filemetadata['file_path'], 'rb') as file:
-            afm_file = ZipFile(file)
-            tempiezoimg = np.array(
-                [UFF._loadcurve(idx, afm_file, file_type).extend_segments[0][1].segment_formated_data[height_channel_key][-1] for idx in range(UFF.filemetadata['Entry_tot_nb_curve'])]
-            )
+
+        #loading the cached file
+        afm_file = UFF.zipbuffer
+        tempiezoimg = np.array(
+            [UFF._loadcurve(idx, afm_file, file_type).extend_segments[0][1].segment_formated_data[height_channel_key][-1] for idx in range(UFF.filemetadata['Entry_tot_nb_curve'])]
+        )
         # Rescale piezo image (0 - maxval)
         piezoimg = tempiezoimg - np.min(tempiezoimg)
         # Reshape piezo image
