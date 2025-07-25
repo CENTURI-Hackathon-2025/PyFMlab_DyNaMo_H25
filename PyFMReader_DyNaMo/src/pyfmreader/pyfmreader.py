@@ -3,6 +3,7 @@
 # AFM data format files.
 
 import os
+from nptdms import TdmsFile
 
 from .constants import *
 from .jpk.loadjpkfile import loadJPKfile
@@ -67,9 +68,15 @@ def loadfile(filepath):
         return loadJPKThermalFile(filepath)
     
     elif filesuffix in psnexfiles:
-        print("is the best")
-        return loadPSNEXfile(filepath, uffobj)
-    
+
+        tdms_file = TdmsFile.read_metadata(filepath)
+        if 'PSnex' in tdms_file['Force Curve'].properties.get("instrument"):
+            print("PSnex is the best")
+
+            return loadPSNEXfile(filepath, uffobj)
+        else:
+            print('here you can you use any tdms file reading ')
+
     else:
         Exception(f"Can not load file: {filepath}")
 

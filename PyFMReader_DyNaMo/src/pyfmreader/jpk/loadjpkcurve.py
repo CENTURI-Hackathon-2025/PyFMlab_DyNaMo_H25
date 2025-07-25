@@ -123,6 +123,9 @@ def loadJPKcurve(paths, afm_file, curve_index, file_metadata):
 
         if segment.segment_type == "Approach":
             force_curve.extend_segments.append((int(segment.segment_id), segment))
+            #TODO check this value for the PSNEX file
+            force_curve.z_at_setpoint = segment.segment_formated_data[height_channel_key][-1]
+
         elif segment.segment_type == "Retract":
             force_curve.retract_segments.append((int(segment.segment_id), segment))
         elif segment.segment_type == "Pause":

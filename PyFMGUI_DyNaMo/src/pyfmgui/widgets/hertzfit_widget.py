@@ -230,11 +230,8 @@ class HertzFitWidget(QtWidgets.QWidget):
         poc_method = hertz_params.child('PoC Method').value()
         poc_win = hertz_params.child('PoC Window').value() / 1e9
         poc_sigma = hertz_params.child('Sigma').value()
-
-        print(self.current_file)
-        print(type(self.current_file))
-        print(self.current_file.filemetadata['file_path'])
-
+        contact_offset = hertz_params.child('Contact Offset').value() / 1e6
+        
         force_curve = self.current_file.getcurve(current_curve_indx)
         force_curve.preprocess_force_curve(deflection_sens, height_channel)
 
@@ -242,9 +239,6 @@ class HertzFitWidget(QtWidgets.QWidget):
             force_curve.shift_height()
 
         file_hertz_result = self.session.hertz_fit_results.get(current_file_id, None)
-
-        # print(file_hertz_result)
-        # print(current_file_id)
 
         if file_hertz_result is not None:
             for curve_indx, curve_hertz_result in file_hertz_result:
@@ -298,12 +292,10 @@ class HertzFitWidget(QtWidgets.QWidget):
         if curve_seg == 'extend':
             self.indentation  = ext_data.indentation
             self.force = ext_data.force
-            self.force = self.force - self.force[0]
             
         else:
             self.indentation  = ret_data.indentation
             self.force = ret_data.force
-            self.force = self.force - self.force[-1]
         
         if hertz_params.child('Downsample Signal').value():
             pts_downsample = hertz_params.child('Downsample Pts.').value()

@@ -108,8 +108,9 @@ def doTingFit(fdc, param_dict):
     else:
         F0_init=force_fit[f0idx]
     # Compute bounds for tc and F0
-    tc_max = tc_fit+downfactor/(1/(time_fit[1]-time_fit[0]))*10
-    tc_min = tc_fit-downfactor/(1/(time_fit[1]-time_fit[0]))*10
+    #setting the duration of the force curve of maximum time of contact
+    tc_max = np.max(time_fit)
+    tc_min = -tc_max
     f0_max = F0_init+100e-12
     f0_min = F0_init-100e-12
     # Set params for betaE
